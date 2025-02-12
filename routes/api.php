@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\DocumentoController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -14,6 +14,12 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+    Route::get('/documentos',[DocumentoController::class,'index'])->name('documentos.index');
+
+    Route::post('/documentosStore',[DocumentoController::class,'store'])->name('documentos.store');
+
+    Route::put('/documentos/{id}',[DocumentoController::class,'update'])->name('documentos.update');
+
+    Route::patch('/documentosEstado/{id}',[DocumentoController::class,'cambiarEstado'])->name('documentos.estado');
+
+    Route::get('/documentosShow/{id}',[DocumentoController::class,'show'])->name('documentos.show');

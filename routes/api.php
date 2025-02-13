@@ -14,12 +14,12 @@ use App\Http\Controllers\DocumentoController;
 |
 */
 
-    Route::get('/documentos',[DocumentoController::class,'index'])->name('documentos.index');
+    Route::get('/documentos',[DocumentoController::class,'index']);
 
-    Route::post('/documentosStore',[DocumentoController::class,'store'])->name('documentos.store');
+    Route::post('/documentosStore',[DocumentoController::class,'store']);
 
-    Route::put('/documentos/{id}',[DocumentoController::class,'update'])->name('documentos.update');
+    Route::put('/documentos/{id}',[DocumentoController::class,'update']);
 
-    Route::patch('/documentosEstado/{id}',[DocumentoController::class,'cambiarEstado'])->name('documentos.estado');
+    Route::patch('/documentosEstado/{id}',[DocumentoController::class,'cambiarEstado']);
 
-    Route::get('/documentosShow/{id}',[DocumentoController::class,'show'])->name('documentos.show');
+    Route::get('/documentosShow/{id}',[DocumentoController::class,'show']);

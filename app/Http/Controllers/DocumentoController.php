@@ -195,26 +195,36 @@ class DocumentoController extends Controller
             ];
             return response()->json($data,404);
         }
+        /*
         $validator = Validator::make($request->all(), [
             'titulo'=> 'required|max:191',
             'descripcion'=>'required|max:255',
             'archivo'=> 'required|max:250'
         ]);
-        if ($validator->fails()) {
+        */
+        if (!$documento) {
             $data=[
                 'message'=>'Error en la validacion de los datos',
-                'errors' => $validator->errors(), 
                 'status'=> 400
             ];
             return response()->json($data,400);
         }
-        $documento->estado = $request->estado;
-        $documento->save();
-        $data=[
+        if($documento->estado == 'abierto'){
+            $documento->estado = 'cerrado';
+            $documento->save();
+            $data=[
             'message'=> 'Estado actualizado',
             'status' => 200
             
-        ];
+            ];
+        }else{
+            $data=[
+                'message'=> 'Estado ya esta marcado como cerrado',
+                'status' => 200
+                
+            ];
+        }
+        //$documento->estado = $request->estado;
         return response()->json($data,201);
         
     }

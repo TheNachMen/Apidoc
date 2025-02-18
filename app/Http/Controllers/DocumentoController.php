@@ -65,8 +65,8 @@ class DocumentoController extends Controller
 
     public function store(Request $request){
         $fechaActual = date("Y-m-d");
-        $mesActual = (int)substr(date("m"),1);
-        
+        $mesActual = (int)substr(date("m"),0);
+        //dd($mesActual);
         $anioActual = date("Y");
         $idanio = Anio::where("numero",$anioActual)->value("id_anio");
 
@@ -98,8 +98,8 @@ class DocumentoController extends Controller
         }else{
             $estadodocumento= EstadoDocumento::create([
             'fecha_modificacion'=> $fechaActual,
+            'mes' => $mesActual,
             'id_documento' => $documento->id_documento,
-            'id_mes' =>$mesActual,
             'id_anio'=> $idanio
             ]);
             if(!$estadodocumento){
@@ -161,8 +161,8 @@ class DocumentoController extends Controller
 
         $estadodocumento= EstadoDocumento::create([
             'fecha_modificacion'=> $fechaActual,
+            'mes' =>$mesActual,
             'id_documento' => $documento->id_documento,
-            'id_mes' =>$mesActual,
             'id_anio'=> $idanio
             ]);
             if(!$estadodocumento){

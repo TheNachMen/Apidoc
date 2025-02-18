@@ -17,8 +17,8 @@ class EstadoDocumento extends Model
     
     protected $fillable = [
         'fecha_modificacion',
+        'mes',
         'id_documento',
-        'id_mes',
         'id_anio'
     ];
 

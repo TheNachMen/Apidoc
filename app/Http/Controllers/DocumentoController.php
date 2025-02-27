@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Anio;
-use App\Models\Mes;
 use App\Models\Documento;
 use App\Models\EstadoDocumento;
 use Illuminate\Support\Facades\Validator;
+use OwenIt\Auditing\Models\Audit;
 class DocumentoController extends Controller
 {
     //
@@ -64,6 +64,8 @@ class DocumentoController extends Controller
     }
 
     public function store(Request $request){
+        $userId= $request->header("X-User-ID");
+        $ip = $request->header("X-IP");
         $fechaActual = date("Y-m-d");
         $mesActual = (int)substr(date("m"),0);
         //dd($mesActual);
@@ -89,6 +91,9 @@ class DocumentoController extends Controller
                 'archivo' => $request->archivo,
                 'estado' => 'abierto'
         ]);
+        //cuando se crea un documento nuevo, este tendra siempre un nuevo id_documento
+        $auditdoc = Audit::where('auditable_id',$documento->id_documento)->update(['user_id' => $userId,'ip_address'=> $ip]);
+        
         if(!$documento){
             $data = [
                 'message'=> 'Error al crear el documento',
@@ -102,6 +107,8 @@ class DocumentoController extends Controller
             'id_documento' => $documento->id_documento,
             'id_anio'=> $idanio
             ]);
+            //cuando se crea un estado nuevo, este tendra siempre un conjunto de nuevos valores nuevos, ya que son unicos para cada estado.
+            $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
             if(!$estadodocumento){
                 $data = [
                     'message'=> 'Error al crear el estado del documento',
@@ -126,6 +133,8 @@ class DocumentoController extends Controller
     }
 
     public function update(Request $request, $id){
+        $userId= $request->header("X-User-ID");
+        $ip = $request->header("X-IP");
         $fechaActual = date("Y-m-d");
         $mesActual = (int)substr(date("m"),1);
         
@@ -158,13 +167,15 @@ class DocumentoController extends Controller
         $documento->descripcion = $request->descripcion;
         $documento->archivo = $request->archivo;
         $documento->save();
-
+        //cada vez que audit detecta que se uso algun modelo para crear o actualizar un registro, este lo registra en su tabla, por ende siempre sera el ultimo registro de la tabla audit
+        $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
         $estadodocumento= EstadoDocumento::create([
             'fecha_modificacion'=> $fechaActual,
             'mes' =>$mesActual,
             'id_documento' => $documento->id_documento,
             'id_anio'=> $idanio
-            ]);
+        ]);
+        $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
             if(!$estadodocumento){
                 $data = [
                     'message'=> 'Error al crear el estado del documento',
@@ -187,6 +198,8 @@ class DocumentoController extends Controller
     }
 
     public function cambiarEstado(Request $request, $id){
+        $userId= $request->header("X-User-ID");
+        $ip = $request->header("X-IP");
         $documento = Documento::find($id);
         if(!$documento){
             $data=[
@@ -212,6 +225,7 @@ class DocumentoController extends Controller
         if($documento->estado == 'abierto'){
             $documento->estado = 'cerrado';
             $documento->save();
+            $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
             $data=[
             'message'=> 'Estado actualizado',
             'status' => 200

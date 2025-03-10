@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Anio;
 use App\Models\Documento;
 use App\Models\EstadoDocumento;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Log;
 use OwenIt\Auditing\Models\Audit;
+
 class DocumentoController extends Controller
 {
     //
@@ -64,33 +68,83 @@ class DocumentoController extends Controller
     }
 
     public function store(Request $request){
+        $fecha = Carbon::now('America/Santiago')->format('d-m-Y H-i-s');
+        // Procesar el archivo
+        if ($request->archivo) {
+            try {
+            $base64Data = $request->archivo;
+
+            // Log para ver qué estamos recibiendo
+            Log::info('Datos base64 recibidos', [
+                'longitud' => strlen($base64Data),
+                'primeros_caracteres' => substr($base64Data, 0, 100)
+            ]);
+
+            // Decodificar archivo - ya viene en base64 puro, no necesitamos strip
+            $decodedFile = base64_decode($base64Data, true);
+            if ($decodedFile === false) {
+                throw new \Exception('Error al decodificar el archivo base64');
+            }
+
+            // Verificar que el contenido decodificado no está vacío
+            if (empty($decodedFile)) {
+                throw new \Exception('El archivo decodificado está vacío');
+            }
+
+            // Generar nombre de archivo temporal
+            $filename = $request->titulo. ' ' .$fecha . 'file' . uniqid() . '.pdf';
+            $path = 'files/documentos/'. date('Y');
+            $fullPath = $path . '/' . $filename;
+
+            // Asegurar que el directorio existe
+            if (!Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->makeDirectory($path,0777, true);
+            }
+
+            // Guardar el archivo temporalmente
+            $saved = Storage::disk('public')->put($fullPath, $decodedFile);
+            
+
+            if (!$saved) {
+                throw new \Exception('Error al guardar el archivo en el servidor');
+            }
+
+            // Guardar la ruta del archivo en la base de datos
+            $url ='http://127.0.0.1:8000/';
+            $ruta = $url .'storage/'.$fullPath;
+
+            Log::info('Archivo guardado exitosamente', [
+                'ruta' =>  $fullPath
+            ]);
+            
+            
+            } catch (\Exception $e) {
+                Log::error('Error procesando archivo: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
+                throw new \Exception('Error al procesar el archivo: ' . $e->getMessage());
+            }
+        }
+        // 
+        // 
+        //obtenemos las cabezeras del request
         $userId= $request->header("X-User-ID");
         $ip = $request->header("X-IP");
+        //obtenemos el año actual
         $fechaActual = date("Y-m-d");
         $mesActual = (int)substr(date("m"),0);
         //dd($mesActual);
         $anioActual = date("Y");
         $idanio = Anio::where("numero",$anioActual)->value("id_anio");
-
-        $validator = Validator::make($request->all(), [
-            'titulo'=> 'required|max:191',
-            'descripcion'=> 'required|max:255',
-            'archivo'=>'required',
-        ]);
-        if ($validator->fails()) {
-            $data=[
-                'message'=>'Error en la validacion de los datos',
-                'errors' => $validator->errors(), 
-                'status'=> 400
-            ];
-            return response()->json($data,400);
-        };
+       
         $documento = Documento::create([
                 'titulo' => $request->titulo,
                 'descripcion'=> $request->descripcion,
-                'archivo' => $request->archivo,
+                'archivo' => $ruta,
                 'estado' => 'abierto'
         ]);
+
+        
         //cuando se crea un documento nuevo, este tendra siempre un nuevo id_documento
         $auditdoc = Audit::where('auditable_id',$documento->id_documento)->update(['user_id' => $userId,'ip_address'=> $ip]);
         
@@ -131,16 +185,8 @@ class DocumentoController extends Controller
         ];
         return response()->json($data,201);
     }
-
     public function update(Request $request, $id){
-        $userId= $request->header("X-User-ID");
-        $ip = $request->header("X-IP");
-        $fechaActual = date("Y-m-d");
-        $mesActual = (int)substr(date("m"),1);
-        
-        $anioActual = date("Y");
-        $idanio = Anio::where("numero",$anioActual)->value("id_anio");
-
+        $fecha = Carbon::now('America/Santiago')->format('d-m-Y H-i-s');
         $documento = Documento::find($id);
         if(!$documento){
             $data=[
@@ -149,23 +195,74 @@ class DocumentoController extends Controller
             ];
             return response()->json($data,404);
         }
+        $ruta = $documento->archivo;
+        // Procesar el archivo
+        if ($request->archivo) {
+            $base64Data = $request->archivo;
 
-        $validator = Validator::make($request->all(), [
-            'titulo'=> 'required|max:191',
-            'descripcion'=>'required|max:255',
-            'archivo'=> 'required|max:250'
-        ]);
-        if ($validator->fails()) {
-            $data=[
-                'message'=>'Error en la validacion de los datos',
-                'errors' => $validator->errors(), 
-                'status'=> 400
-            ];
-            return response()->json($data,400);
+            // Log para ver qué estamos recibiendo
+             Log::info('Datos base64 recibidos', [
+                 'longitud' => strlen($base64Data),
+                 'primeros_caracteres' => substr($base64Data, 0, 100)
+             ]);
+
+            // Decodificar archivo - ya viene en base64 puro, no necesitamos strip
+            $decodedFile = base64_decode($base64Data, true);
+            
+            //verificar si la decodificacion fue exitosa.
+            if($decodedFile !== false){
+                // Generar nombre de archivo temporal
+                $filename = $request->titulo. ' ' .$fecha . 'file' . uniqid() . '.pdf';
+                $path = 'files/documentos/'. date('Y');
+                $fullPath = $path . '/' . $filename;
+
+                // Asegurar que el directorio existe
+                if (!Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->makeDirectory($path,0777, true);
+                }
+
+                // Guardar el archivo temporalmente
+                $saved = Storage::disk('public')->put($fullPath, $decodedFile);
+                
+
+                if (!$saved) {
+                    throw new \Exception('Error al guardar el archivo en el servidor');
+                }
+
+                // Guardar la ruta del archivo en la base de datos
+                $url ='http://127.0.0.1:8000/';
+                $ruta = $url .'storage/'.$fullPath;
+
+                Log::info('Archivo guardado exitosamente', [
+                    'ruta' =>  $fullPath
+                ]);
+            }else{
+
+                if ($decodedFile === false) {
+                    throw new \Exception('Error al decodificar el archivo base64');
+                }
+                $ruta = $documento->archivo;
+            }
+            
+
+            // Verificar que el contenido decodificado no está vacío
+            if (empty($decodedFile)) {
+                throw new \Exception('El archivo decodificado está vacío');
+            }
+
         }
+        //
+        $userId= $request->header("X-User-ID");
+        $ip = $request->header("X-IP");
+        $fechaActual = date("Y-m-d");
+        $mesActual = (int)substr(date("m"),1);
+        
+        $anioActual = date("Y");
+        $idanio = Anio::where("numero",$anioActual)->value("id_anio");
+        
         $documento->titulo = $request->titulo;
         $documento->descripcion = $request->descripcion;
-        $documento->archivo = $request->archivo;
+        $documento->archivo = $ruta;
         $documento->save();
         //cada vez que audit detecta que se uso algun modelo para crear o actualizar un registro, este lo registra en su tabla, por ende siempre sera el ultimo registro de la tabla audit
         $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);

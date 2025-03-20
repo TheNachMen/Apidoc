@@ -20,7 +20,8 @@ class EstadoDocumento extends Model implements Auditable
         'fecha_modificacion',
         'mes',
         'id_documento',
-        'id_anio'
+        'id_anio',
+        'estado_actual'
     ];
 
     protected $hidden = [

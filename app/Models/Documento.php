@@ -23,6 +23,9 @@ class Documento extends Model implements Auditable
         'descripcion',
         'archivo',
         'estado',
+        'user_id',
+        'fecha_inicio',
+        'fecha_termino'
     ];
 
     protected $hidden = [

@@ -4,6 +4,8 @@
     </IfModule>
 
     RewriteEngine On
+    #acceder a los archivos sin la necesidad de colocar storage/file
+    RewriteRule ^documentos/(.*)$ storage/files/documentos/$1 [L]
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
@@ -18,4 +20,7 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+
+    
+
 </IfModule>

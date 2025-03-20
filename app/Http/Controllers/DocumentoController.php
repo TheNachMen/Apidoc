@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Trazabilidad;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Anio;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Log;
 use OwenIt\Auditing\Models\Audit;
+use Str;
 
 class DocumentoController extends Controller
 {
@@ -68,6 +70,7 @@ class DocumentoController extends Controller
     }
 
     public function store(Request $request){
+        //
         $fecha = Carbon::now('America/Santiago')->format('d-m-Y H-i-s');
         // Procesar el archivo
         if ($request->archivo) {
@@ -110,8 +113,9 @@ class DocumentoController extends Controller
             }
 
             // Guardar la ruta del archivo en la base de datos
+            $pathtodb = Str::after($fullPath,'/');
             $url ='http://127.0.0.1:8000/';
-            $ruta = $url .'storage/'.$fullPath;
+            $ruta = $url .$pathtodb;
 
             Log::info('Archivo guardado exitosamente', [
                 'ruta' =>  $fullPath
@@ -131,7 +135,7 @@ class DocumentoController extends Controller
         $userId= $request->header("X-User-ID");
         $ip = $request->header("X-IP");
         //obtenemos el año actual
-        $fechaActual = date("Y-m-d");
+        $fechaActual = Carbon::parse($request->fecha_inicio)->format('Y-m-d');
         $mesActual = (int)substr(date("m"),0);
         //dd($mesActual);
         $anioActual = date("Y");
@@ -141,7 +145,9 @@ class DocumentoController extends Controller
                 'titulo' => $request->titulo,
                 'descripcion'=> $request->descripcion,
                 'archivo' => $ruta,
-                'estado' => 'abierto'
+                'estado' => 'pendiente',
+                'user_id' => $userId,
+                'fecha_inicio' => $request->fecha_inicio,
         ]);
 
         
@@ -155,14 +161,22 @@ class DocumentoController extends Controller
             ];
             return response()->json($data,400);
         }else{
+
             $estadodocumento= EstadoDocumento::create([
             'fecha_modificacion'=> $fechaActual,
             'mes' => $mesActual,
             'id_documento' => $documento->id_documento,
-            'id_anio'=> $idanio
+            'id_anio'=> $idanio,
+            'estado_actual' => 'o'
             ]);
             //cuando se crea un estado nuevo, este tendra siempre un conjunto de nuevos valores nuevos, ya que son unicos para cada estado.
             $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $trazabilidad = Trazabilidad::create([
+                'id_doc'=>$documento->id_documento,
+                'accion'=>'Creacion',
+                'fecha_accion'=> Carbon::now('America/Santiago')->format('Y-m-d H:i:s'),
+                'estado'=>$documento->estado 
+            ]);
             if(!$estadodocumento){
                 $data = [
                     'message'=> 'Error al crear el estado del documento',
@@ -195,6 +209,17 @@ class DocumentoController extends Controller
             ];
             return response()->json($data,404);
         }
+        //dd(Carbon::parse($documento->fecha_inicio)->format('m'));
+        $cargo = $request->titulo;
+        if($documento->estado == 'abierto'){
+            if(Str::contains($request->titulo,'(ACTUALIZADO)')){
+                $cargo = $request->titulo;
+            }else{
+                $cargo = $request->titulo.' '.'(ACTUALIZADO)';
+            }
+        }
+        //dd($cargo);
+        //dd($request->titulo,$palabra);
         $ruta = $documento->archivo;
         // Procesar el archivo
         if ($request->archivo) {
@@ -237,18 +262,9 @@ class DocumentoController extends Controller
                     'ruta' =>  $fullPath
                 ]);
             }else{
-
-                if ($decodedFile === false) {
-                    throw new \Exception('Error al decodificar el archivo base64');
-                }
                 $ruta = $documento->archivo;
             }
             
-
-            // Verificar que el contenido decodificado no está vacío
-            if (empty($decodedFile)) {
-                throw new \Exception('El archivo decodificado está vacío');
-            }
 
         }
         //
@@ -260,26 +276,70 @@ class DocumentoController extends Controller
         $anioActual = date("Y");
         $idanio = Anio::where("numero",$anioActual)->value("id_anio");
         
-        $documento->titulo = $request->titulo;
-        $documento->descripcion = $request->descripcion;
-        $documento->archivo = $ruta;
-        $documento->save();
+        // $documento->titulo = $cargo;
+        // $documento->descripcion = $request->descripcion;
+        // $documento->archivo = $ruta;
+        // $documento->save();
         //cada vez que audit detecta que se uso algun modelo para crear o actualizar un registro, este lo registra en su tabla, por ende siempre sera el ultimo registro de la tabla audit
-        $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
-        $estadodocumento= EstadoDocumento::create([
-            'fecha_modificacion'=> $fechaActual,
-            'mes' =>$mesActual,
-            'id_documento' => $documento->id_documento,
-            'id_anio'=> $idanio
-        ]);
-        $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
-            if(!$estadodocumento){
-                $data = [
-                    'message'=> 'Error al crear el estado del documento',
-                    'status' => 500
-                ];
-                return response()->json($data,400);
-            }
+        // $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
+        if($documento->estado == 'pendiente'){
+            $documento->titulo = $cargo;
+            $documento->descripcion = $request->descripcion;
+            $documento->fecha_inicio = $request->fecha_inicio;
+            $documento->archivo = $ruta;
+            $documento->save();
+        //cada vez que audit detecta que se uso algun modelo para crear o actualizar un registro, este lo registra en su tabla, por ende siempre sera el ultimo registro de la tabla audit
+            $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $estadodocumento= EstadoDocumento::create([
+                'fecha_modificacion'=> Carbon::parse($documento->fecha_inicio)->format('Y-m-d'),
+                'mes' =>(int)Carbon::parse($documento->fecha_inicio)->format('m'),
+                'id_documento' => $documento->id_documento,
+                'id_anio'=> $idanio,
+                'estado_actual' => 'o'
+            ]);
+            $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $trazabilidad = Trazabilidad::create([
+                'id_doc'=>$documento->id_documento,
+                'accion'=>'Actualizacion',
+                'fecha_accion'=> Carbon::now('America/Santiago')->format('Y-m-d H:i:s'),
+                'estado'=>$documento->estado 
+            ]);
+                if(!$estadodocumento){
+                    $data = [
+                        'message'=> 'Error al crear el estado del documento',
+                        'status' => 500
+                    ];
+                    return response()->json($data,400);
+                }
+        }elseif($documento->estado == 'abierto' || $documento->estado == 'cerrado'){
+            $documento->titulo = $cargo;
+            $documento->descripcion = $request->descripcion;
+            $documento->archivo = $ruta;
+            $documento->save();
+            //cada vez que audit detecta que se uso algun modelo para crear o actualizar un registro, este lo registra en su tabla, por ende siempre sera el ultimo registro de la tabla audit
+            $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $estadodocumento= EstadoDocumento::create([
+                'fecha_modificacion'=> $fechaActual,
+                'mes' =>$mesActual,
+                'id_documento' => $documento->id_documento,
+                'id_anio'=> $idanio,
+                'estado_actual' => 'a'
+            ]);
+            $auditestado= Audit::where('new_values',$estadodocumento)->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $trazabilidad = Trazabilidad::create([
+                'id_doc'=>$documento->id_documento,
+                'accion'=>'Actualizacion',
+                'fecha_accion'=> Carbon::now('America/Santiago')->format('Y-m-d H:i:s'),
+                'estado'=>$documento->estado 
+            ]);
+                if(!$estadodocumento){
+                    $data = [
+                        'message'=> 'Error al crear el estado del documento',
+                        'status' => 500
+                    ];
+                    return response()->json($data,400);
+                }
+        }
         $data=[
             'message'=> 'Datos de documento actualizado',
             [
@@ -297,6 +357,7 @@ class DocumentoController extends Controller
     public function cambiarEstado(Request $request, $id){
         $userId= $request->header("X-User-ID");
         $ip = $request->header("X-IP");
+        $fecha_cierre = Carbon::now('America/Santiago')->toDateTimeString();
         $documento = Documento::find($id);
         if(!$documento){
             $data=[
@@ -305,13 +366,7 @@ class DocumentoController extends Controller
             ];
             return response()->json($data,404);
         }
-        /*
-        $validator = Validator::make($request->all(), [
-            'titulo'=> 'required|max:191',
-            'descripcion'=>'required|max:255',
-            'archivo'=> 'required|max:250'
-        ]);
-        */
+        
         if (!$documento) {
             $data=[
                 'message'=>'Error en la validacion de los datos',
@@ -321,8 +376,15 @@ class DocumentoController extends Controller
         }
         if($documento->estado == 'abierto'){
             $documento->estado = 'cerrado';
+            $documento->fecha_termino = $fecha_cierre;
             $documento->save();
             $auditdoc = Audit::orderBy('created_at','desc')->first()->update(['user_id'=> $userId,'ip_address'=> $ip]);
+            $trazabilidad = Trazabilidad::create([
+                'id_doc'=>$documento->id_documento,
+                'accion'=>'Cerrar',
+                'fecha_accion'=> Carbon::now('America/Santiago')->format('Y-m-d H:i:s'),
+                'estado'=>$documento->estado 
+            ]);
             $data=[
             'message'=> 'Estado actualizado',
             'status' => 200
@@ -355,5 +417,12 @@ class DocumentoController extends Controller
         ];
 
         return response()->json($data,200);
+    }
+
+    public function trazabilidadindex(){
+         //obtener todos los documentos
+         $trazabilidad = Trazabilidad::all();
+
+         return response()->json(compact("trazabilidad"),200);
     }
 }

@@ -23,3 +23,5 @@ use App\Http\Controllers\DocumentoController;
     Route::patch('/documentosEstado/{id}',[DocumentoController::class,'cambiarEstado']);
 
     Route::get('/documentosShow/{id}',[DocumentoController::class,'show']);
+
+    Route::get('/trazabilidaddocindex', [DocumentoController::class,'trazabilidadindex']);

@@ -211,13 +211,13 @@ class DocumentoController extends Controller
         }
         //dd(Carbon::parse($documento->fecha_inicio)->format('m'));
         $cargo = $request->titulo;
-        if($documento->estado == 'abierto'){
-            if(Str::contains($request->titulo,'(ACTUALIZADO)')){
-                $cargo = $request->titulo;
-            }else{
-                $cargo = $request->titulo.' '.'(ACTUALIZADO)';
-            }
-        }
+        // if($documento->estado == 'abierto'){
+        //     if(Str::contains($request->titulo,'(ACTUALIZADO)')){
+        //         $cargo = $request->titulo;
+        //     }else{
+        //         $cargo = $request->titulo.' '.'(ACTUALIZADO)';
+        //     }
+        // }
         //dd($cargo);
         //dd($request->titulo,$palabra);
         $ruta = $documento->archivo;

@@ -11,7 +11,7 @@ class Anio extends Model
 
     protected $connection = 'mysql'; //configurar la conexion a la base de usuarios
 
-    protected $table = 'db_sisdocumentos.año'; //configurar la conexion con la tabla
+    protected $table = 'db_sisdocumentos.anio'; //configurar la conexion con la tabla
 
     protected $primaryKey = 'id_anio';
 
